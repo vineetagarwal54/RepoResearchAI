@@ -1,4 +1,4 @@
-# GraphFlow - AI-Powered Repository Analysis
+# AI-Powered Repository Analysis
 
 An intelligent code analysis platform that uses multi-agent AI systems to analyze repositories and provide insights through an interactive chat interface.
 
