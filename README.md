@@ -132,20 +132,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Troubleshooting
-
-**Issue**: Backend connection errors
-- Ensure backend is running on port 8000
-- Check if `BACKEND_URL` in frontend.py matches your backend address
-
-**Issue**: OpenAI API errors
-- Verify your API key in `.env`
-- Check API quota and billing
-
-**Issue**: Preprocessing fails
-- Ensure the repository is public (for GitHub URLs)
-- Check file size limits for ZIP uploads
-
 ## Acknowledgments
 
 - Built with [AutoGen](https://github.com/microsoft/autogen)
