@@ -2,6 +2,8 @@
 
 An intelligent code analysis platform that uses multi-agent AI systems to analyze repositories and provide insights through an interactive chat interface.
 
+![Project UI](assests/ui-screenshot.png)
+
 ## Features
 
 - 🤖 **Multi-Agent Analysis**: Leverages specialized AI agents (SDE, PM, QA) to analyze codebases
