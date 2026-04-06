@@ -30,8 +30,8 @@ def search_code(query: str, k: int = 5, vector_store_path: Optional[str] = None)
             }
         ]
     
-    # Real implementation using preprocessor
-    from src.utils.preprocessor import load_vector_store
+    # Real implementation using embeddings module (repo-processing/ is in sys.path)
+    from embeddings import load_vector_store
     
     vector_store = load_vector_store(vector_store_path)
     docs = vector_store.similarity_search(query, k=k)

@@ -6,7 +6,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 import os
 
-from src.config.analysis_config import AnalysisConfig, get_depth_parameters, get_verbosity_instructions
+from app.config.analysis_config import AnalysisConfig, get_depth_parameters, get_verbosity_instructions
 
 
 def create_semantic_query_agent(config: AnalysisConfig) -> AssistantAgent:

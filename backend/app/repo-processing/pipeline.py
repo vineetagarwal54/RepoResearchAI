@@ -8,7 +8,7 @@ try:
     from search import CodeSearchFAISS
 except ImportError:
     CodeSearchFAISS = None
-from backend.app.team_adapter import save_for_graphflow
+from team_adapter import save_for_graphflow
 from dotenv import load_dotenv
 
 # Load API key from .env (better than hardcoding)

@@ -1,17 +1,22 @@
 """
-Adapter to convert MyFriendCode preprocessor output to GraphFlow format
+Adapter to convert preprocessor output to GraphFlow format
 """
 import json
 from pathlib import Path
 from typing import Dict, Any
+
+# Absolute base path for project data
+_BASE_DATA_DIR = Path(__file__).parent / "data" / "projects"
 
 
 def create_graphflow_context(
     project_id: str,
     repo_analysis: Dict[str, Any],
     sections_count: int,
-    output_dir: str = "data/projects"
+    output_dir: str = None
 ) -> Dict[str, Any]:
+    if output_dir is None:
+        output_dir = str(_BASE_DATA_DIR)
     # Convert Pydantic model to dict if needed
     if hasattr(repo_analysis, 'model_dump'):
         repo_analysis = repo_analysis.model_dump()
@@ -55,8 +60,10 @@ def save_for_graphflow(
     repo_analysis: Dict[str, Any],
     sections_count: int,
     faiss_store,
-    output_dir: str = "data/projects"
+    output_dir: str = None
 ) -> str:
+    if output_dir is None:
+        output_dir = str(_BASE_DATA_DIR)
     """
     Save preprocessor output in GraphFlow-compatible format
     

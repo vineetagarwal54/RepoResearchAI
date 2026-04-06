@@ -1,6 +1,5 @@
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from models import CodeSectionModel
 import os
 from dotenv import load_dotenv
 
@@ -13,15 +12,24 @@ class EmbeddingStoreFAISS:
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large", api_key=openai_api_key)
         self.store = None
 
-    def add_sections(self, sections: list[CodeSectionModel]):
+    def add_sections(self, sections):
         """
-        Add a list of code sections to the FAISS vector store with metadata
+        Add a list of code sections (LangChain Documents or CodeSectionModels) to the FAISS vector store.
         """
         texts = [sec.page_content for sec in sections]
-        # Extract metadata from sections
-        metadatas = [{"source": sec.metadata.get("source", "unknown"), 
-                      "language": sec.metadata.get("language", "unknown")} 
-                     for sec in sections]
+        # Handle both LangChain Document (has .metadata dict) and CodeSectionModel (has .file attr)
+        metadatas = []
+        for sec in sections:
+            if hasattr(sec, 'metadata') and isinstance(sec.metadata, dict):
+                metadatas.append({
+                    "source": sec.metadata.get("source", "unknown"),
+                    "language": sec.metadata.get("language", "unknown")
+                })
+            else:
+                metadatas.append({
+                    "source": getattr(sec, 'file', 'unknown'),
+                    "language": "unknown"
+                })
 
         if self.store is None:
             # Create a new FAISS store with metadata
@@ -44,3 +52,9 @@ class EmbeddingStoreFAISS:
         """
         self.store = FAISS.load_local(path, self.embeddings, allow_dangerous_deserialization=True)
         return self.store
+
+
+def load_vector_store(path: str):
+    """Load a saved FAISS vector store from disk."""
+    store = EmbeddingStoreFAISS()
+    return store.load(path)

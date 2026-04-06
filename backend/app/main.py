@@ -1,20 +1,33 @@
 from fastapi import FastAPI, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+from dotenv import load_dotenv
 import sys
+
+ROOT = Path(__file__).parent
+load_dotenv(ROOT.parent.parent / ".env")  # Load .env from project root
+
+sys.path.insert(0, str(ROOT))               # backend/app/ — for auth, projects, admin, db
+sys.path.insert(0, str(ROOT / "repo-processing"))  # for pipeline, embeddings
+sys.path.insert(0, str(ROOT.parent))        # backend/ — for app.xxx imports
+
 import auth
 import projects
 import admin
 
-ROOT = Path(__file__).parent
-sys.path.insert(0, str(ROOT / "repo-processing"))
-# Add parent directory to find src.teams and src.config
-sys.path.insert(0, str(ROOT.parent.parent))  # AutoGen/
-# Also add src/ directly in case it's needed
-sys.path.insert(0, str(ROOT.parent))  # src/
+app = FastAPI(title="RepoResearchAI", description="AI-powered repository analysis")
 
-app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Use absolute path to avoid issues when running from different directories
 BASE_DATA_DIR = ROOT / "data" / "projects"
+BASE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 preprocess_status = {}  # Track preprocessing progress
 analysis_status = {}    # Track analysis progress
 
@@ -96,94 +109,84 @@ async def get_preprocess_status(project_id: str):
 
 
 async def run_graphflow_analysis(project_id: str, personas: str = "SDE,PM", depth: str = "standard", verbosity: str = "medium"):
-    from src.teams.graphflow_team import GraphFlowCoordinator
-    from src.config.analysis_config import AnalysisConfig, FeaturesEnabled
     import json
-    import asyncio
-    
-    # Update status (already initialized in start_analysis endpoint)
-    if project_id in analysis_status:
-        analysis_status[project_id]["current_activity"] = "Initializing analysis..."
-        analysis_status[project_id]["logs"].append("Initializing GraphFlow coordinator")
-    
-    print(f"🚀 Starting GraphFlow analysis for project {project_id}")
-    print(f"   Personas: {personas}, Depth: {depth}, Verbosity: {verbosity}")
-    
+    import traceback
+
+    def _update(activity: str, progress: int, insight: str = None):
+        if project_id in analysis_status:
+            analysis_status[project_id]["current_activity"] = activity
+            analysis_status[project_id]["progress"] = progress
+            analysis_status[project_id]["logs"].append(f"[{progress}%] {activity}")
+            if insight:
+                analysis_status[project_id]["agent_insights"][activity] = insight
+
+    print(f"[analysis] Starting for project {project_id} | personas={personas} depth={depth} verbosity={verbosity}")
+    _update("Importing modules...", 2)
+
     try:
-        # Parse personas
+        from app.teams.graphflow_team import GraphFlowCoordinator
+        from app.config.analysis_config import AnalysisConfig, FeaturesEnabled
+    except Exception as e:
+        msg = f"Import error: {e}\n{traceback.format_exc()}"
+        print(f"[analysis] {msg}")
+        analysis_status[project_id] = {"status": "failed", "error": msg}
+        return
+
+    try:
         personas_list = [p.strip() for p in personas.split(",")]
-        print(f"   Parsed personas: {personas_list}")
-        
-        # Validate and cast depth/verbosity
-        depth_val = depth if depth in ["quick", "standard", "deep"] else "standard"
-        verbosity_val = verbosity if verbosity in ["low", "medium", "high"] else "medium"
-        
-        # Create configuration
-        features = FeaturesEnabled(
-            structure=True,
-            api_db=True,
-            best_practices=True,
-            pm_insights="PM" in personas_list
-        )
-        
+        depth_val = depth if depth in ("quick", "standard", "deep") else "standard"
+        verbosity_val = verbosity if verbosity in ("low", "medium", "high") else "medium"
+
         config = AnalysisConfig(
-            depth=depth_val,  # type: ignore
-            verbosity=verbosity_val,  # type: ignore
-            features_enabled=features
+            depth=depth_val,
+            verbosity=verbosity_val,
+            features_enabled=FeaturesEnabled(
+                structure=True, api_db=True, best_practices=True,
+                pm_insights="PM" in personas_list,
+            ),
         )
-        
-        print(f"   Creating GraphFlowCoordinator...")
-        # Pass absolute project directory to avoid path issues
+
+        _update("Creating analysis coordinator...", 5)
         absolute_project_dir = BASE_DATA_DIR / project_id
         coordinator = GraphFlowCoordinator(project_id, config, project_dir=absolute_project_dir)
         coordinator.selected_personas = personas_list
-        print(f"   Coordinator created, starting analysis...")
-        
-        # Status update callback
-        def update_status(activity: str, progress: int, insight: str = None):  # type: ignore
-            if project_id in analysis_status:
-                analysis_status[project_id]["current_activity"] = activity
-                analysis_status[project_id]["progress"] = progress
-                analysis_status[project_id]["logs"].append(f"[{progress}%] {activity}")
-                if insight:
-                    analysis_status[project_id]["agent_insights"][activity] = insight
-        
-        coordinator.status_callback = update_status  # type: ignore
-        
-        print(f"   Calling coordinator.run_analysis()...")
+        coordinator.status_callback = _update
+
+        _update("Running agent pipeline...", 10)
+        print(f"[analysis] Running coordinator.run_analysis()...")
         result = await coordinator.run_analysis()
-        print(f"   ✅ Analysis completed successfully!")
-        
+        print(f"[analysis] Completed in {result.execution_time_seconds}s  success={result.success}")
+
+        if not result.success:
+            error_detail = "; ".join(result.errors) if result.errors else "Unknown agent error"
+            print(f"[analysis] Pipeline returned success=False: {error_detail}")
+            analysis_status[project_id] = {"status": "failed", "error": error_detail}
+            return
+
         result_data = {
             "config": {"personas": personas, "depth": depth, "verbosity": verbosity},
             "sde_report": result.sde_report.model_dump() if result.sde_report and "SDE" in personas_list else None,
             "pm_report": result.pm_report.model_dump() if result.pm_report and "PM" in personas_list else None,
-            "time": result.execution_time_seconds
+            "time": result.execution_time_seconds,
         }
-        
-        # Final status update
-        if project_id in analysis_status:
-            analysis_status[project_id]["current_activity"] = "Analysis complete!"
-            analysis_status[project_id]["progress"] = 100
-        
+
         # Save to file
         project_dir = BASE_DATA_DIR / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         with open(project_dir / "analysis_result.json", "w") as f:
             json.dump(result_data, f, indent=2)
-        
+
         analysis_status[project_id] = {
             "status": "completed",
             "result": result_data,
-            "paused": False
         }
+        print(f"[analysis] Saved results for {project_id}")
+
     except Exception as e:
-        print(f"❌ Analysis failed for {project_id}: {type(e).__name__}: {str(e)}")
-        import traceback
+        msg = f"{type(e).__name__}: {e}"
+        print(f"[analysis] FAILED: {msg}")
         traceback.print_exc()
-        analysis_status[project_id] = {"status": "failed", "error": str(e), "paused": False}
-    finally:
-        pass
+        analysis_status[project_id] = {"status": "failed", "error": msg}
 
 
 @app.post("/projects/{project_id}/analyze/graphflow")
@@ -216,13 +219,28 @@ async def start_analysis(
     return {"status": "started", "config": {"personas": personas, "depth": depth, "verbosity": verbosity}}
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/projects/{project_id}/status")
 async def get_status(project_id: str):
-    # Only return in-memory status - no saved file checks
+    import json
+    # Return in-memory status if available
     if project_id in analysis_status:
         return analysis_status[project_id]
-    
-    # No active analysis
+
+    # Fallback: check if result file exists on disk (e.g. after server restart)
+    result_file = BASE_DATA_DIR / project_id / "analysis_result.json"
+    if result_file.exists():
+        try:
+            with open(result_file, "r") as f:
+                result_data = json.load(f)
+            return {"status": "completed", "result": result_data}
+        except Exception:
+            pass
+
     return {"status": "not_started"}
 
 
@@ -238,7 +256,7 @@ llm_instance = None  # Reuse single LLM instance across requests
 
 @app.post("/projects/{project_id}/ask")
 async def ask(project_id: str, question: str = Form(...)):
-    from src.utils.preprocessor import load_vector_store
+    from embeddings import load_vector_store
     import os
     import time
     global llm_instance

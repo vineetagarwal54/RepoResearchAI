@@ -11,14 +11,14 @@ import json
 import time
 from pathlib import Path
 
-from src.agents.coordinator_agent import create_coordinator_agent
-from src.agents.semantic_agent import create_semantic_query_agent
-from src.agents.best_practice_agent import create_best_practice_agent
-from src.agents.sde_writer_agent import create_sde_writer_agent
-from src.agents.pm_writer_agent import create_pm_writer_agent
-from src.agents.qa_agent import create_qa_agent
-from src.agents.utils import search_code
-from src.models.schemas import (
+from app.agents.coordinator_agent import create_coordinator_agent
+from app.agents.semantic_agent import create_semantic_query_agent
+from app.agents.best_practice_agent import create_best_practice_agent
+from app.agents.sde_writer_agent import create_sde_writer_agent
+from app.agents.pm_writer_agent import create_pm_writer_agent
+from app.agents.qa_agent import create_qa_agent
+from app.agents.utils import search_code
+from app.models.schemas import (
     CoordinatorOutput,
     SemanticQueryOutput,
     BestPracticeOutput,
@@ -27,8 +27,7 @@ from src.models.schemas import (
     QAOutput,
     AnalysisResult
 )
-from src.config.analysis_config import AnalysisConfig, load_config
-from src.utils import load_vector_store
+from app.config.analysis_config import AnalysisConfig, load_config
 
 
 class GraphFlowCoordinator:

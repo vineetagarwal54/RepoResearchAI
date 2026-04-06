@@ -9,11 +9,11 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 
-from src.models.schemas import AnalysisResult
-from src.models.run_state import AnalysisRun, RunStatus, AgentStep
-from src.config.analysis_config import AnalysisConfig
-from src.teams.graphflow_team import GraphFlowCoordinator
-from src.agents.utils import search_code
+from app.models.schemas import AnalysisResult
+from app.models.run_state import AnalysisRun, RunStatus, AgentStep
+from app.config.analysis_config import AnalysisConfig
+from app.teams.graphflow_team import GraphFlowCoordinator
+from app.agents.utils import search_code
 
 # Store running tasks globally to prevent cancellation
 _running_tasks: Dict[str, asyncio.Task] = {}
@@ -169,7 +169,7 @@ class ResearchRunner:
                             return
             
             # Now parse all outputs using coordinator's parsing logic (from run_analysis)
-            from src.models.schemas import CoordinatorOutput, SemanticQueryOutput, BestPracticeOutput, SDEOutput, PMOutput, QAOutput
+            from app.models.schemas import CoordinatorOutput, SemanticQueryOutput, BestPracticeOutput, SDEOutput, PMOutput, QAOutput
             
             for msg in result_messages:
                 content = msg.content if hasattr(msg, 'content') else str(msg)
@@ -258,12 +258,12 @@ class ResearchRunner:
         This allows resuming from a paused state without re-running completed agents.
         """
         from autogen_agentchat.teams import DiGraphBuilder, GraphFlow
-        from src.agents.coordinator_agent import create_coordinator_agent
-        from src.agents.semantic_agent import create_semantic_query_agent
-        from src.agents.best_practice_agent import create_best_practice_agent
-        from src.agents.sde_writer_agent import create_sde_writer_agent
-        from src.agents.pm_writer_agent import create_pm_writer_agent
-        from src.agents.qa_agent import create_qa_agent
+        from app.agents.coordinator_agent import create_coordinator_agent
+        from app.agents.semantic_agent import create_semantic_query_agent
+        from app.agents.best_practice_agent import create_best_practice_agent
+        from app.agents.sde_writer_agent import create_sde_writer_agent
+        from app.agents.pm_writer_agent import create_pm_writer_agent
+        from app.agents.qa_agent import create_qa_agent
         
         # Create all agents
         agents_map = {

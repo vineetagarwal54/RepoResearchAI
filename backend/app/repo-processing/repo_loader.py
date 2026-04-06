@@ -63,16 +63,25 @@ class RepoLoader:
         
     @staticmethod
     def load_documents(repo_path: str) -> list[Document]:
+        SKIP_DIRS = {"node_modules", "__pycache__", ".git", ".venv", "venv", ".tox", "dist", "build"}
+        SKIP_EXTENSIONS = {".pyc", ".pyo", ".exe", ".dll", ".so", ".o", ".a",
+                           ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
+                           ".woff", ".woff2", ".ttf", ".eot",
+                           ".zip", ".tar", ".gz", ".lock"}
+
         def is_valid_file(file_path):
-            parts = file_path.split(os.sep)
+            parts = file_path.replace("\\", "/").split("/")
             for part in parts:
-                if part.startswith(".") or part in ["node_modules", "__pycache__"]:
+                if part.startswith(".") or part in SKIP_DIRS:
                     return False
             filename = os.path.basename(file_path)
             if filename.startswith(".env"):
                 return False
+            ext = Path(file_path).suffix.lower()
+            if ext in SKIP_EXTENSIONS:
+                return False
             return os.path.isfile(file_path)
-        
+
         def notebook_to_code(file_path: str):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -82,37 +91,39 @@ class RepoLoader:
             except Exception as e:
                 print(f"Failed to read notebook {file_path}: {e}")
                 return ""
-        
+
+        def read_file_safe(file_path: str) -> str:
+            """Read a file with multiple encoding fallbacks."""
+            for encoding in ("utf-8", "latin-1"):
+                try:
+                    with open(file_path, "r", encoding=encoding) as f:
+                        return f.read()
+                except (UnicodeDecodeError, ValueError):
+                    continue
+            return ""
+
         documents = []
         for root, dirs, files in os.walk(repo_path):
+            # Skip hidden/unwanted directories in-place for efficiency
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
             for file in files:
                 file_path = os.path.join(root, file)
-                ext = Path(file_path).suffix.lower()
 
                 if not is_valid_file(file_path):
                     continue
 
+                ext = Path(file_path).suffix.lower()
+
                 if ext == ".ipynb":
                     content = notebook_to_code(file_path)
                     if content.strip():
-                        documents.append(Document(page_content=content, metadata={"source":file_path}))
-                    else:
-                        print("No code in the notebook")
+                        documents.append(Document(page_content=content, metadata={"source": file_path}))
                 else:
-                    loader = DirectoryLoader(
-                        repo_path,
-                        glob="**/*",
-                        show_progress=True,
-                        loader_cls=UnstructuredFileLoader,
-                        # show_progress=True,
-                        silent_errors=True,
-                    )
+                    content = read_file_safe(file_path)
+                    if content.strip():
+                        documents.append(Document(page_content=content, metadata={"source": file_path}))
 
-                    # documents = []
-                    for doc in loader.load():
-                        file_path = doc.metadata.get("source", "")
-                        if is_valid_file(file_path):
-                            documents.append(Document(page_content=doc.page_content, metadata=doc.metadata))
+        print(f"Loaded {len(documents)} documents from {repo_path}")
         return documents
     
 
